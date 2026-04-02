@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2Wheel Tracker — Bug Reports</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f2f2f7; color: #1c1c1e; min-height: 100vh; }
+
+  /* PAT modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: white; border-radius: 18px; padding: 32px 28px; width: 100%; max-width: 440px; margin: 16px; box-shadow: 0 8px 40px rgba(0,0,0,.2); }
+  .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
+  .modal p { font-size: .88rem; color: #636366; line-height: 1.6; margin-bottom: 18px; }
+  .modal input { width: 100%; padding: 11px 14px; border: 1.5px solid #d1d1d6; border-radius: 10px; font-size: .95rem; font-family: 'SF Mono', 'Menlo', monospace; margin-bottom: 14px; outline: none; transition: border-color .15s; }
+  .modal input:focus { border-color: #007aff; }
+  .modal .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal button { padding: 10px 22px; border: none; border-radius: 10px; font-size: .9rem; font-weight: 600; cursor: pointer; }
+  .modal .btn-cancel { background: #f2f2f7; color: #1c1c1e; }
+  .modal .btn-save { background: #007aff; color: white; }
+  .modal .btn-save:hover { background: #0066d6; }
+  .modal .hint { font-size: .78rem; color: #8e8e93; margin-top: -8px; margin-bottom: 14px; line-height: 1.5; }
+
+  header { background: #1c1c1e; color: white; padding: 18px 28px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 6px rgba(0,0,0,.3); }
+  header svg { width: 28px; height: 28px; flex-shrink: 0; }
+  header h1 { font-size: 1.15rem; font-weight: 600; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #ff453a; color: white; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+  .btn-pat { background: #3a3a3c; border: none; color: #ebebf5; font-size: .78rem; padding: 5px 12px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .btn-pat:hover { background: #48484a; }
+
+  .toolbar { padding: 14px 28px; display: flex; gap: 10px; align-items: center; background: #f2f2f7; border-bottom: 1px solid #d1d1d6; flex-wrap: wrap; }
+  .toolbar input { flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #d1d1d6; border-radius: 10px; font-size: .9rem; background: white; outline: none; }
+  .toolbar input:focus { border-color: #007aff; }
+  .toolbar select { padding: 8px 12px; border: 1px solid #d1d1d6; border-radius: 10px; font-size: .9rem; background: white; cursor: pointer; }
+  .count { font-size: .85rem; color: #8e8e93; margin-left: auto; white-space: nowrap; }
+  .refresh-info { font-size: .78rem; color: #aeaeb2; white-space: nowrap; }
+
+  .list { padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; max-width: 900px; margin: 0 auto; }
+
+  .card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: opacity .2s; }
+  .card.closed { opacity: .55; }
+  .card-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; }
+  .card-header .meta { flex: 1; min-width: 0; }
+  .issue-number { font-size: .75rem; color: #8e8e93; margin-bottom: 3px; }
+  .issue-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; word-break: break-word; }
+  .device { font-size: .78rem; color: #8e8e93; margin-bottom: 4px; }
+  .description { font-size: .92rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; color: #3a3a3c; }
+  .timestamp { font-size: .78rem; color: #8e8e93; margin-top: 6px; }
+  .version-badge { display: inline-block; background: #f2f2f7; border-radius: 6px; padding: 2px 7px; font-size: .72rem; color: #636366; margin-top: 4px; }
+  .status-tag { display: inline-block; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin-left: 8px; vertical-align: middle; }
+  .status-tag.open { background: #007aff20; color: #007aff; }
+  .status-tag.closed { background: #30d15820; color: #30d158; }
+
+  .card-actions { display: flex; gap: 0; border-top: 1px solid #f2f2f7; }
+  .card-actions button { flex: 1; padding: 11px; font-size: .83rem; font-weight: 500; border: none; background: none; cursor: pointer; transition: background .15s; }
+  .card-actions button:hover { background: #f2f2f7; }
+  .card-actions button.close-issue { color: #30d158; }
+  .card-actions button.reopen-issue { color: #ff9f0a; }
+  .card-actions button.view-gh { color: #007aff; }
+  .card-actions button + button { border-left: 1px solid #f2f2f7; }
+
+  .screenshot-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; cursor: pointer; flex-shrink: 0; border: 1px solid #e5e5ea; }
+
+  .empty { text-align: center; padding: 80px 20px; color: #8e8e93; }
+  .empty svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: .4; }
+  .empty p { font-size: 1rem; }
+
+  .error-bar { background: #ff453a15; border: 1px solid #ff453a40; color: #c0392b; padding: 12px 18px; border-radius: 10px; margin: 16px 28px; font-size: .88rem; display: none; }
+  .error-bar.visible { display: block; }
+
+  .loading { text-align: center; padding: 60px 20px; color: #8e8e93; font-size: .95rem; }
+
+  /* Lightbox */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 100; align-items: center; justify-content: center; }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 12px; box-shadow: 0 4px 40px rgba(0,0,0,.5); }
+  .lightbox-close { position: fixed; top: 18px; right: 22px; color: white; font-size: 2rem; cursor: pointer; line-height: 1; opacity: .8; }
+  .lightbox-close:hover { opacity: 1; }
+
+  @media (max-width: 600px) {
+    header, .toolbar, .list { padding-left: 16px; padding-right: 16px; }
+    .error-bar { margin-left: 16px; margin-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PAT Modal -->
+<div class="modal-backdrop" id="pat-modal">
+  <div class="modal">
+    <h2>GitHub Access Token</h2>
+    <p>Enter your GitHub Personal Access Token with <strong>Issues read/write</strong> permission for the <code>mototracker-bugs</code> repository. The token is stored only in this browser session and never sent anywhere except GitHub's API.</p>
+    <input type="password" id="pat-input" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+    <p class="hint">Create a token: GitHub Settings &rarr; Developer Settings &rarr; Fine-grained tokens &rarr; New token &rarr; Repository: mototracker-bugs &rarr; Permissions: Issues (Read &amp; Write)</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="pat-cancel">Cancel</button>
+      <button class="btn-save" id="pat-save">Save &amp; Load</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M8 12h4l2-4"/>
+    <circle cx="8.5" cy="16.5" r="1.5"/>
+    <circle cx="15.5" cy="16.5" r="1.5"/>
+  </svg>
+  <h1>2Wheel Tracker &mdash; Bug Reports</h1>
+  <div class="header-right">
+    <span class="badge" id="open-count">0</span>
+    <button class="btn-pat" onclick="showPatModal()">Change Token</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="search" placeholder="Search reports…" oninput="render()">
+  <select id="filter" onchange="render()">
+    <option value="all">All reports</option>
+    <option value="open">Open</option>
+    <option value="closed">Closed</option>
+  </select>
+  <span class="count" id="count-label"></span>
+  <span class="refresh-info" id="refresh-info"></span>
+</div>
+
+<div class="error-bar" id="error-bar"></div>
+<div class="list" id="list"><div class="loading">Loading issues…</div></div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <span class="lightbox-close">&times;</span>
+  <img id="lightbox-img" src="" alt="Screenshot">
+</div>
+
+<script>
+const REPO = 'brianwhitman71-cell/mototracker-bugs';
+const API  = `https://api.github.com/repos/${REPO}/issues`;
+
+let issues = [];
+let refreshTimer = null;
+let nextRefreshAt = null;
+
+// ── PAT management ─────────────────────────────────────────────────────────
+
+function getToken() { return sessionStorage.getItem('gh_pat') || ''; }
+function setToken(t) { sessionStorage.setItem('gh_pat', t.trim()); }
+
+function showPatModal(required = false) {
+  const modal = document.getElementById('pat-modal');
+  modal.classList.add('open');
+  document.getElementById('pat-input').value = getToken();
+  document.getElementById('pat-cancel').style.display = required ? 'none' : '';
+  document.getElementById('pat-input').focus();
+}
+
+function hidePatModal() {
+  document.getElementById('pat-modal').classList.remove('open');
+}
+
+document.getElementById('pat-save').addEventListener('click', () => {
+  const val = document.getElementById('pat-input').value.trim();
+  if (!val) { document.getElementById('pat-input').focus(); return; }
+  setToken(val);
+  hidePatModal();
+  load();
+});
+
+document.getElementById('pat-cancel').addEventListener('click', hidePatModal);
+
+document.getElementById('pat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pat-save').click();
+  if (e.key === 'Escape') hidePatModal();
+});
+
+// ── GitHub API helpers ─────────────────────────────────────────────────────
+
+async function ghFetch(url, options = {}) {
+  const token = getToken();
+  const headers = {
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+  return fetch(url, { ...options, headers });
+}
+
+async function fetchAllIssues() {
+  // Fetch up to 100 issues (open + closed)
+  const url = `${API}?state=all&per_page=100`;
+  const r = await ghFetch(url);
+  if (r.status === 401) {
+    showError('Authentication failed. Please update your GitHub token.');
+    showPatModal(true);
+    return null;
+  }
+  if (!r.ok) throw new Error(`GitHub API error: ${r.status}`);
+  return r.json();
+}
+
+// ── Issue body parser ──────────────────────────────────────────────────────
+
+function parseIssueBody(body) {
+  if (!body) return { description: '', device: '', ios: '', appVersion: '', appBuild: '', reported: '', screenshotURL: '' };
+
+  const get = (label) => {
+    // Match table row: | Label | Value |
+    const re = new RegExp(`\\|\\s*${label}\\s*\\|\\s*([^|\\n]+)\\s*\\|`, 'i');
+    const m = body.match(re);
+    return m ? m[1].trim() : '';
+  };
+
+  // Description: text between ## Description and next ##
+  const descMatch = body.match(/##\s*Description\s*\n([\s\S]*?)(?=\n##|$)/i);
+  const description = descMatch ? descMatch[1].trim() : body.trim();
+
+  // Parse table fields
+  const device     = get('Device');
+  const ios        = get('iOS');
+  const appVersion = get('App Version');
+  const reported   = get('Reported');
+
+  // Parse app version / build from "1.2 (45)" pattern
+  const avMatch = appVersion.match(/^([\d.]+)\s*\((\d+)\)$/);
+  const av = avMatch ? avMatch[1] : appVersion;
+  const ab = avMatch ? avMatch[2] : '';
+
+  // Screenshot URL: ![Screenshot](url)
+  const ssMatch = body.match(/!\[Screenshot\]\((https?:\/\/[^)]+)\)/i);
+  const screenshotURL = ssMatch ? ssMatch[1] : '';
+
+  return { description, device, ios, appVersion: av, appBuild: ab, reported, screenshotURL };
+}
+
+// ── Load & render ──────────────────────────────────────────────────────────
+
+async function load() {
+  clearRefreshTimer();
+  hideError();
+  try {
+    const data = await fetchAllIssues();
+    if (data === null) return; // auth error — modal shown
+    issues = data;
+    render();
+    scheduleRefresh();
+  } catch (e) {
+    showError(`Failed to load issues: ${e.message}`);
+    scheduleRefresh();
+  }
+}
+
+function scheduleRefresh() {
+  nextRefreshAt = Date.now() + 60000;
+  updateRefreshInfo();
+  refreshTimer = setInterval(() => {
+    const remaining = Math.ceil((nextRefreshAt - Date.now()) / 1000);
+    if (remaining <= 0) {
+      clearInterval(refreshTimer);
+      load();
+    } else {
+      updateRefreshInfo();
+    }
+  }, 1000);
+}
+
+function clearRefreshTimer() {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
+
+function updateRefreshInfo() {
+  if (!nextRefreshAt) return;
+  const remaining = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+  document.getElementById('refresh-info').textContent = remaining > 0 ? `Refreshes in ${remaining}s` : '';
+}
+
+function fmt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+       + ' at '
+       + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function render() {
+  const q      = document.getElementById('search').value.toLowerCase();
+  const filter = document.getElementById('filter').value;
+
+  const filtered = issues.filter(issue => {
+    if (filter === 'open'   && issue.state !== 'open')   return false;
+    if (filter === 'closed' && issue.state !== 'closed') return false;
+    const parsed = parseIssueBody(issue.body);
+    const haystack = (issue.title + ' ' + parsed.description + ' ' + parsed.device).toLowerCase();
+    if (q && !haystack.includes(q)) return false;
+    return true;
+  });
+
+  const openCount = issues.filter(i => i.state === 'open').length;
+  document.getElementById('open-count').textContent = openCount;
+  document.getElementById('count-label').textContent =
+    `${filtered.length} of ${issues.length} issue${issues.length !== 1 ? 's' : ''}`;
+
+  const list = document.getElementById('list');
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9.172 14.828a4 4 0 015.656 0M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p>No issues found.</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(issue => {
+    const p = parseIssueBody(issue.body);
+    const isClosed = issue.state === 'closed';
+    const reportedDate = p.reported || issue.created_at;
+
+    // Build device line
+    const deviceParts = [p.device, p.ios ? `iOS ${p.ios}` : ''].filter(Boolean);
+    const deviceLine = deviceParts.join(' · ');
+
+    // Build version badge
+    const versionStr = [p.appVersion, p.appBuild ? `(${p.appBuild})` : ''].filter(Boolean).join(' ');
+
+    return `
+    <div class="card ${isClosed ? 'closed' : ''}" id="card-${issue.number}">
+      <div class="card-header">
+        <div class="meta">
+          <div class="issue-number">#${issue.number}
+            <span class="status-tag ${issue.state}">${isClosed ? 'Closed' : 'Open'}</span>
+          </div>
+          <div class="issue-title">${escHtml(issue.title)}</div>
+          ${deviceLine ? `<div class="device">${escHtml(deviceLine)}</div>` : ''}
+          ${p.description ? `<div class="description">${escHtml(p.description)}</div>` : ''}
+          ${versionStr ? `<span class="version-badge">v${escHtml(versionStr)}</span>` : ''}
+          <div class="timestamp">${fmt(reportedDate)}</div>
+        </div>
+        ${p.screenshotURL ? `<img class="screenshot-thumb" src="${escHtml(p.screenshotURL)}" alt="Screenshot" onclick="openLightbox('${escHtml(p.screenshotURL)}')" loading="lazy">` : ''}
+      </div>
+      <div class="card-actions">
+        <button class="${isClosed ? 'reopen-issue' : 'close-issue'}" onclick="toggleIssue(${issue.number}, '${issue.state}')">
+          ${isClosed ? 'Reopen' : 'Close Issue'}
+        </button>
+        <button class="view-gh" onclick="window.open('${escHtml(issue.html_url)}','_blank')">View on GitHub</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Issue actions ──────────────────────────────────────────────────────────
+
+async function toggleIssue(number, currentState) {
+  const newState = currentState === 'open' ? 'closed' : 'open';
+  try {
+    const r = await ghFetch(`${API}/${number}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: newState })
+    });
+    if (r.status === 401) { showPatModal(true); return; }
+    if (!r.ok) throw new Error(`GitHub API error: ${r.status}`);
+    const updated = await r.json();
+    const idx = issues.findIndex(i => i.number === number);
+    if (idx !== -1) issues[idx] = updated;
+    render();
+  } catch (e) {
+    showError(`Failed to update issue: ${e.message}`);
+  }
+}
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── Error display ──────────────────────────────────────────────────────────
+
+function showError(msg) {
+  const bar = document.getElementById('error-bar');
+  bar.textContent = msg;
+  bar.classList.add('visible');
+}
+function hideError() {
+  document.getElementById('error-bar').classList.remove('visible');
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+
+if (!getToken()) {
+  showPatModal(true);
+  document.getElementById('list').innerHTML = '<div class="empty"><p>Enter your GitHub token to load issues.</p></div>';
+} else {
+  load();
+}
+</script>
+</body>
+</html>
