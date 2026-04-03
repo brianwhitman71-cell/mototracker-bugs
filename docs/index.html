@@ -60,7 +60,20 @@
   .card-actions button.close-issue { color: #30d158; }
   .card-actions button.reopen-issue { color: #ff9f0a; }
   .card-actions button.view-gh { color: #007aff; }
+  .card-actions button.delete-issue { color: #ff453a; }
   .card-actions button + button { border-left: 1px solid #f2f2f7; }
+
+  /* Delete confirm overlay */
+  .confirm-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300; align-items: center; justify-content: center; }
+  .confirm-backdrop.open { display: flex; }
+  .confirm-box { background: white; border-radius: 14px; padding: 24px 22px; width: 100%; max-width: 320px; margin: 16px; box-shadow: 0 8px 40px rgba(0,0,0,.25); text-align: center; }
+  .confirm-box h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+  .confirm-box p { font-size: .85rem; color: #636366; line-height: 1.5; margin-bottom: 20px; }
+  .confirm-box .confirm-actions { display: flex; gap: 10px; }
+  .confirm-box .confirm-actions button { flex: 1; padding: 11px; border: none; border-radius: 10px; font-size: .9rem; font-weight: 600; cursor: pointer; }
+  .confirm-box .btn-cancel-confirm { background: #f2f2f7; color: #1c1c1e; }
+  .confirm-box .btn-delete-confirm { background: #ff453a; color: white; }
+  .confirm-box .btn-delete-confirm:hover { background: #d63227; }
 
   .screenshot-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; cursor: pointer; flex-shrink: 0; border: 1px solid #e5e5ea; }
 
@@ -129,6 +142,18 @@
 
 <div class="error-bar" id="error-bar"></div>
 <div class="list" id="list"><div class="loading">Loading issues…</div></div>
+
+<!-- Delete confirm modal -->
+<div class="confirm-backdrop" id="confirm-modal">
+  <div class="confirm-box">
+    <h3>Delete Issue?</h3>
+    <p>This permanently deletes the bug report from GitHub. This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancel-confirm" id="confirm-cancel">Cancel</button>
+      <button class="btn-delete-confirm" id="confirm-delete">Delete</button>
+    </div>
+  </div>
+</div>
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <span class="lightbox-close">&times;</span>
@@ -350,6 +375,7 @@ function render() {
           ${isClosed ? 'Reopen' : 'Close Issue'}
         </button>
         <button class="view-gh" onclick="window.open('${escHtml(issue.html_url)}','_blank')">View on GitHub</button>
+        <button class="delete-issue" onclick="confirmDelete(${issue.number}, '${escHtml(issue.node_id)}')">Delete</button>
       </div>
     </div>`;
   }).join('');
@@ -373,6 +399,54 @@ async function toggleIssue(number, currentState) {
     render();
   } catch (e) {
     showError(`Failed to update issue: ${e.message}`);
+  }
+}
+
+// ── Delete issue ──────────────────────────────────────────────────────────
+
+let pendingDelete = null; // { number, nodeId }
+
+function confirmDelete(number, nodeId) {
+  pendingDelete = { number, nodeId };
+  document.getElementById('confirm-modal').classList.add('open');
+}
+
+function closeConfirmModal() {
+  pendingDelete = null;
+  document.getElementById('confirm-modal').classList.remove('open');
+}
+
+document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
+
+document.getElementById('confirm-delete').addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  const { number, nodeId } = pendingDelete;
+  closeConfirmModal();
+  await deleteIssue(number, nodeId);
+});
+
+async function deleteIssue(number, nodeId) {
+  const token = getToken();
+  if (!token) { showPatModal(true); return; }
+  try {
+    const r = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      },
+      body: JSON.stringify({
+        query: `mutation { deleteIssue(input: { issueId: "${nodeId}" }) { repository { id } } }`
+      })
+    });
+    if (r.status === 401) { showPatModal(true); return; }
+    const json = await r.json();
+    if (json.errors) throw new Error(json.errors[0].message);
+    issues = issues.filter(i => i.number !== number);
+    render();
+  } catch (e) {
+    showError(`Failed to delete issue: ${e.message}`);
   }
 }
 

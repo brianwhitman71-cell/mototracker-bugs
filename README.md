@@ -13,7 +13,7 @@ On first load it will prompt for a GitHub Personal Access Token (stored in sessi
 
 1. GitHub.com → Settings → Developer Settings → Fine-grained tokens → New token
 2. Repository access: **Only select repositories** → `mototracker-bugs`
-3. Permissions: **Issues** → Read and write
+3. Permissions: **Issues** → Read and write (also enables delete via GraphQL)
 4. Copy the token and paste it into the dashboard prompt
 
 ## How it works
